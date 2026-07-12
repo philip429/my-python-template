@@ -1,0 +1,35 @@
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = "Data exploration and modeling"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+dependencies = [
+    "ipykernel",
+    "jupyter",
+    "pandas",
+]
+
+# Modern standard for defining dev tools (supported by uv)
+[dependency-groups]
+dev = [
+    "ruff",
+]
+
+[tool.ruff]
+# Crucial: Tell Ruff to lint and format Jupyter notebooks
+extend-include = ["*.ipynb"]
+line-length = 88
+
+[tool.ruff.lint]
+# Enable standard errors (E), Pyflakes (F), and isort for import sorting (I)
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+# Matches Black's default formatting style
+quote-style = "double"
+indent-style = "space"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
