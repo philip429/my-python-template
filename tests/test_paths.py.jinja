@@ -1,0 +1,5 @@
+from {{ project_name }}.paths import DATA_DIR, PROJECT_ROOT
+
+
+def test_data_directory_is_below_project_root() -> None:
+    assert DATA_DIR == PROJECT_ROOT / "data"

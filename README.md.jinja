@@ -1,9 +1,38 @@
 # {{ project_name }}
 
-Data exploration and modeling project.
+{{ project_description }}
+
+## Project structure
+
+```text
+├── configs/             # Version-controlled experiment and pipeline parameters
+├── data/
+│   ├── raw/             # Immutable source data
+│   ├── interim/         # Intermediate transformed data
+│   ├── processed/       # Model-ready datasets
+│   └── external/        # Data from third parties
+├── models/              # Serialized models (ignored by Git)
+├── notebooks/           # Numbered exploration notebooks
+├── reports/figures/     # Generated figures and reports
+├── src/{{ project_name }}/    # Reusable project code
+└── tests/               # Automated tests
+```
 
 ## Setup
 
-1. Install [uv](https://github.com/astral-sh/uv)
-2. Run `uv sync` to install dependencies.
-3. Open in VS Code.
+1. Install [uv](https://docs.astral.sh/uv/).
+2. Run `uv sync`.
+3. Copy `.env.example` to `.env` and add local secrets if needed.
+4. Run `uv run jupyter lab` for notebooks.
+
+## Development
+
+```bash
+uv run ruff check .
+uv run ruff format .
+uv run pytest
+uv run {{ project_name | replace('_', '-') }}
+```
+
+Keep notebooks focused on exploration. Move reusable loading, feature, and modeling
+logic into `src/{{ project_name }}/` and cover it with tests.

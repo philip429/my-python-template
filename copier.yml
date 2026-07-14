@@ -1,19 +1,41 @@
-# Don't copy these files into the generated project - Cause Readme can collision
-exclude:
-  - "README.md"
-  - ".git/"
+# Files used to document the template repository itself.
+_min_copier_version: "9.0.0"
+_answers_file: .copier-answers.yml
+_exclude:
+  - "copier.yml"
+  - "copier.yaml"
+  - ".git"
+  - ".svn"
+  - ".DS_Store"
+  - "__pycache__"
+  - "*.py[co]"
+  - ".venv"
+  - "uv.lock"
 
 project_name:
   type: str
-  help: What is the name of your project? (Use underscores, e.g., my_project)
-  default: default_project
+  help: Python package name (use lowercase letters, numbers, and underscores)
+  default: my_data_project
+  validator: >-
+    {% if not (project_name | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Use a valid Python package name, for example: customer_churn.
+    {% endif %}
+
+project_description:
+  type: str
+  help: Short project description
+  default: Data exploration and modeling project
+
+author_name:
+  type: str
+  help: Author or team name
+  default: Data Science Team
 
 python_version:
   type: str
-  help: Which Python version to use?
+  help: Minimum supported Python version
   default: "3.12"
 
 _tasks:
-  # Synchronize Python version and dependencies
   - git init
   - uv sync

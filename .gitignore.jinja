@@ -6,6 +6,7 @@ __pycache__/
 *$py.class
 .venv/
 .env
+.python-version
 
 # =========================
 # Jupyter Notebooks
@@ -16,6 +17,27 @@ __pycache__/
 # Tools & Linting (Ruff)
 # =========================
 .ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checking
+.mypy_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Data, models, and generated reports
+data/**
+!data/**/
+!data/**/.gitkeep
+models/**
+!models/.gitkeep
+reports/**
+!reports/**/
+!reports/**/.gitkeep
 
 # =========================
 # Copier
