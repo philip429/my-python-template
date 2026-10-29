@@ -1,0 +1,5 @@
+# Tools for validating the template itself, not generated project dependencies.
+copier>=9.4,<10
+nbformat>=5.10,<6
+pytest>=8.2,<10
+ruff>=0.5,<1

@@ -1,0 +1,102 @@
+import numpy as np
+import pandas as pd
+import pytest
+from pandas.testing import assert_frame_equal, assert_series_equal
+
+from {{ project_name }}.dataExploration.missing import (
+    impute_knn,
+    missing_case_plot,
+    missing_case_summary,
+    missing_case_table,
+    missing_heatmap,
+    missing_summary,
+    missing_summary_plot,
+    missing_upsetplot,
+    missing_variable_plot,
+    missing_variable_summary,
+    missing_variable_table,
+)
+
+
+def test_case_summary_counts_only_original_columns():
+    # Reserved-looking input names must not be overwritten during counting.
+    frame = pd.DataFrame({"case": [None, 1], "n_missing": [None, 2]}, index=[10, 20])
+    original = frame.copy(deep=True)
+    summary = missing_case_summary(frame)
+    assert summary["n_missing"].tolist() == [2, 0]
+    assert summary["pct_missing"].tolist() == [100.0, 0.0]
+    assert summary["case"].tolist() == [10, 20]
+    assert_frame_equal(frame, original)
+
+
+def test_variable_summaries_support_named_columns_index():
+    frame = pd.DataFrame({"a": [1, None], "b": [None, None]})
+    frame.columns.name = "features"
+    assert missing_summary(frame)["column_name"].tolist() == ["a", "b"]
+    summary = missing_variable_summary(frame)
+    assert summary["variable"].tolist() == ["a", "b"]
+    assert summary["pct_missing"].tolist() == [50.0, 100.0]
+    assert missing_case_table(frame)["n_cases"].sum() == 2
+    assert missing_variable_table(frame)["n_variables"].sum() == 2
+
+
+def test_empty_summary_percentages_are_zero():
+    assert missing_variable_summary(pd.DataFrame(columns=["a"]))[
+        "pct_missing"
+    ].tolist() == [0.0]
+    assert missing_case_summary(pd.DataFrame(index=[1]))["pct_missing"].tolist() == [
+        0.0
+    ]
+
+
+@pytest.mark.parametrize("method", ["ordinal", "onehot"])
+def test_knn_imputes_categories_without_changing_observed_values(method):
+    frame = pd.DataFrame(
+        {
+            "id": [10, 11, 12],
+            "distance": [0.0, 1.0, 100.0],
+            "label": pd.array(["a", None, "b"], dtype="string"),
+            "date": pd.to_datetime(["2024-01-01", None, "2024-01-03"]),
+        },
+        index=[7, 8, 9],
+    )
+    original = frame.copy(deep=True)
+    result = impute_knn(frame, n_neighbors=1, method=method, exclude_columns=["id"])
+    assert result["label"].tolist() == ["a", "a", "b"]
+    assert_series_equal(result["id"], frame["id"])
+    assert_series_equal(result["date"], frame["date"])
+    assert result.index.equals(frame.index)
+    assert_frame_equal(frame, original)
+
+
+def test_knn_imputes_numeric_values():
+    frame = pd.DataFrame({"x": [0.0, 1.0, 100.0], "y": [2.0, np.nan, 10.0]})
+    result = impute_knn(frame, n_neighbors=1)
+    assert result["y"].tolist() == [2.0, 2.0, 10.0]
+
+
+@pytest.mark.parametrize("values", [[np.nan, np.nan], [None, None]])
+def test_knn_rejects_columns_with_no_observed_values(values):
+    with pytest.raises(ValueError, match="entirely missing"):
+        impute_knn(pd.DataFrame({"empty": values, "x": [1, 2]}))
+
+
+def test_knn_rejects_unknown_exclusions():
+    with pytest.raises(ValueError, match="Unknown exclude_columns"):
+        impute_knn(pd.DataFrame({"x": [1]}), exclude_columns=["typo"])
+
+
+@pytest.mark.parametrize(
+    "plotter",
+    [
+        missing_summary_plot,
+        missing_heatmap,
+        missing_variable_plot,
+        missing_case_plot,
+        missing_upsetplot,
+    ],
+)
+def test_missing_plots_support_named_columns(plotter):
+    frame = pd.DataFrame({"a": [1.0, None, 3.0], "b": [None, None, 1.0]})
+    frame.columns.name = "features"
+    assert plotter(frame) is not None

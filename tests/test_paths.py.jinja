@@ -1,5 +1,26 @@
+from {{ project_name }} import paths
 from {{ project_name }}.paths import DATA_DIR, PROJECT_ROOT
 
 
 def test_data_directory_is_below_project_root() -> None:
     assert DATA_DIR == PROJECT_ROOT / "data"
+
+
+def test_ensure_directories_is_idempotent(tmp_path, monkeypatch):
+    for name in ["INTERIM_DATA_DIR", "PROCESSED_DATA_DIR", "MODEL_DIR", "FIGURE_DIR"]:
+        monkeypatch.setattr(paths, name, tmp_path / name)
+    paths.ensure_project_dirs()
+    paths.ensure_project_dirs()
+    assert all(path.is_dir() for path in tmp_path.iterdir())
+    assert len(list(tmp_path.iterdir())) == 4
+
+
+def test_explicit_project_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_PROJECT_ROOT", str(tmp_path))
+    assert paths.get_project_root() == tmp_path.resolve()
+
+
+def test_paths_do_not_depend_on_working_directory(tmp_path, monkeypatch):
+    monkeypatch.delenv("DATA_PROJECT_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert paths.get_project_root() == PROJECT_ROOT

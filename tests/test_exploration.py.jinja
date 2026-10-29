@@ -1,0 +1,64 @@
+import numpy as np
+import pandas as pd
+import pytest
+from pandas.testing import assert_frame_equal, assert_series_equal
+
+from {{ project_name }}.dataExploration.exploration import (
+    decode_categories,
+    dispersion_measures_df,
+    encode_categories,
+    plot_central_tendency_measures,
+)
+
+
+@pytest.mark.parametrize("method", ["ordinal", "onehot"])
+def test_encoding_roundtrip_preserves_labels_index_and_passthrough_types(method):
+    frame = pd.DataFrame(
+        {
+            "number": pd.array([1, 2, None], dtype="Int64"),
+            "label": pd.array(["a", None, "b"], dtype="string"),
+            "date": pd.to_datetime(["2024-01-01", None, "2024-01-03"], utc=True),
+            "duration": pd.to_timedelta([1, None, 3], unit="D"),
+        },
+        index=[10, 20, 30],
+    )
+    original = frame.copy(deep=True)
+    encoded, transformer, columns = encode_categories(frame, method)
+    result = decode_categories(encoded, transformer, columns)
+    assert result.columns.tolist() == frame.columns.tolist()
+    assert result.index.equals(frame.index)
+    assert result.loc[10, "label"] == "a"
+    assert pd.isna(result.loc[20, "label"])
+    for col in ["number", "date", "duration"]:
+        assert_series_equal(result[col], frame[col])
+    assert_frame_equal(frame, original)
+
+
+def test_dispersion_counts_outliers_and_ignores_non_numeric_columns():
+    frame = pd.DataFrame({"x": [1, 1, 1, 1, 100, np.nan], "label": ["a"] * 6})
+    summary = dispersion_measures_df(frame)
+    assert summary.index.tolist() == ["x"]
+    assert summary.loc["x", "top_outlier"] == 1
+    assert summary.loc["x", "median"] == 1
+
+
+def test_mixed_distribution_plot_is_silent_and_excludes_identifiers(capsys):
+    grid = plot_central_tendency_measures(
+        pd.DataFrame(
+            {
+                "customer_id": [1, 2, 3, 4],
+                "score": [1, 2, 2, 3],
+                "group": ["a", "a", "b", "b"],
+                "date": pd.date_range("2024-01-01", periods=4),
+            }
+        )
+    )
+    assert set(grid.axes_dict) == {"score", "group", "date"}
+    assert capsys.readouterr().out == ""
+
+
+def test_encoding_rejects_duplicate_and_non_string_column_names():
+    with pytest.raises(ValueError, match="unique"):
+        encode_categories(pd.DataFrame([[1, 2]], columns=["x", "x"]))
+    with pytest.raises(TypeError, match="strings"):
+        encode_categories(pd.DataFrame([[1]], columns=[0]))

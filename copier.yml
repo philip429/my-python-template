@@ -11,14 +11,29 @@ _exclude:
   - "*.py[co]"
   - ".venv"
   - "uv.lock"
+  - "/requirements-dev.txt"
+  - "/template_tests"
+  - "/.github"
+  - "/docs"
+  - "/.cache"
+  - "/.pytest_cache"
+  - "/.ruff_cache"
+  - "/.coverage*"
+  - "/htmlcov"
+  - "/build"
+  - "/dist"
 
 project_name:
   type: str
-  help: Python package name (use lowercase letters, numbers, and underscores)
+  help: Python package name (lowercase letters, numbers, underscores; end with a letter or number)
   default: my_data_project
   validator: >-
-    {% if not (project_name | regex_search('^[a-z][a-z0-9_]*$')) %}
-    Use a valid Python package name, for example: customer_churn.
+    {% if not (project_name | regex_search('^[a-z]([a-z0-9_]*[a-z0-9])?$')) %}
+    Use a valid Python package name ending in a letter or number, for example: customer_churn.
+    {% elif project_name | regex_search('^(con|prn|aux|nul|com[1-9]|lpt[1-9])$') %}
+    The package name cannot be a reserved Windows filename.
+    {% elif project_name in ['and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield'] %}
+    The package name cannot be a Python keyword.
     {% endif %}
 
 project_description:
@@ -33,9 +48,14 @@ author_name:
 
 python_version:
   type: str
-  help: Minimum supported Python version
+  help: Python minor version for the project (for example, 3.12)
   default: "3.12"
+  validator: >-
+    {% if not (python_version | regex_search('^3[.](1[2-9]|[2-9][0-9])$')) %}
+    Use a Python minor version of 3.12 or newer, for example: 3.12.
+    {% endif %}
 
 _tasks:
-  - git init
+  - command: git init
+    when: "{{ _copier_operation == 'copy' }}"
   - uv sync

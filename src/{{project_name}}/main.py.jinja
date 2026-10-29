@@ -4,15 +4,15 @@ import logging
 
 from {{ project_name }}.paths import PROCESSED_DATA_DIR, ensure_project_dirs
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
 def main() -> None:
     """Run the project pipeline."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
     ensure_project_dirs()
     logger.info(
         "Pipeline ready; processed data will be written to %s",

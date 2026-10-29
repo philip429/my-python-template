@@ -1,0 +1,42 @@
+name: Validate template
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install Python
+        run: uv python install ${{ matrix.python }}
+      - name: Check template rendering and input validation
+        run: uv run --python ${{ matrix.python }} --with-requirements requirements-dev.txt pytest template_tests -q
+      - name: Render a custom project
+        run: uv run --python ${{ matrix.python }} --with-requirements requirements-dev.txt copier copy --defaults --skip-tasks --vcs-ref HEAD -d project_name=template_smoke -d python_version=${{ matrix.python }} . .cache/generated
+      - name: Install generated project
+        run: uv sync --project .cache/generated
+      - name: Lint generated project
+        working-directory: .cache/generated
+        run: uv run ruff check .
+      - name: Check formatting
+        working-directory: .cache/generated
+        run: uv run ruff format --check .
+      - name: Test generated project
+        working-directory: .cache/generated
+        run: uv run pytest
+      - name: Run entry point
+        working-directory: .cache/generated
+        run: uv run template-smoke
+      - name: Build package
+        run: uv build --project .cache/generated

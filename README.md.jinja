@@ -2,28 +2,133 @@
 
 {{ project_description }}
 
+## Setup
+
+Install [uv](https://docs.astral.sh/uv/) and run commands from this project folder:
+
+```bash
+uv sync
+uv run pytest
+uv run jupyter lab
+```
+
+This project uses Python {{ python_version }}. `uv sync` creates `.venv`, installs
+the package in editable mode, and installs development tools. Select that
+environment as your notebook kernel in VS Code. Imports from
+`{{ project_name }}` then work without editing `sys.path`.
+
+Copy `.env.example` to `.env` only if you need local secrets. `.env` is ignored
+by Git and is **not loaded automatically**. Export variables in your shell or
+explicitly use `uv run --env-file .env ...` when a command needs them.
+
+Commit `uv.lock`, `.python-version`, and `.copier-answers.yml`. Other contributors
+can use `uv sync --locked` to reproduce the recorded dependencies. Use
+`uv lock --upgrade` deliberately and rerun checks after dependency updates.
+Pandas is currently constrained below version 3 because UpSetPlot 0.9 plotting
+fails with pandas 3's copy-on-write behavior.
+PyJanitor 0.31.0 and pandas-flavor 0.7 are also constrained to keep their pandas
+extension APIs compatible. Revisit these bounds together when upgrading.
+
 ## Project structure
 
 ```text
-├── configs/             # Version-controlled experiment and pipeline parameters
-├── data/
-│   ├── raw/             # Immutable source data
-│   ├── interim/         # Intermediate transformed data
-│   ├── processed/       # Model-ready datasets
-│   └── external/        # Data from third parties
-├── models/              # Serialized models (ignored by Git)
-├── notebooks/           # Numbered exploration notebooks
-├── reports/figures/     # Generated figures and reports
-├── src/{{ project_name }}/    # Reusable project code
-└── tests/               # Automated tests
+configs/                       Version-controlled experiment parameters
+data/raw/                      Original, unmodified input data
+data/interim/                  Intermediate transformed data
+data/processed/                Model-ready datasets
+data/external/                 Third-party data
+models/                        Serialized models
+notebooks/                     Numbered exploration notebooks
+reports/figures/               Generated figures
+src/{{ project_name }}/
+    dataExploration/           Exploration and prediction-comparison helpers
+    paths.py                   Paths independent of the working directory
+    main.py                    Starter command-line entry point
+tests/                         Regression tests for reusable code
 ```
 
-## Setup
+Data, model artifacts, and generated reports are ignored by Git; `.gitkeep`
+files preserve the folder structure. Track dataset sources, versions, checksums,
+and acquisition steps in your project notes. Raw data should remain unchanged.
+Parameters in `configs/params.yaml` are examples; the starter does not apply
+them automatically.
 
-1. Install [uv](https://docs.astral.sh/uv/).
-2. Run `uv sync`.
-3. Copy `.env.example` to `.env` and add local secrets if needed.
-4. Run `uv run jupyter lab` for notebooks.
+## Explore data
+
+Put your dataset in `data/raw/`, then use these imports in a notebook:
+
+```python
+import pandas as pd
+
+from {{ project_name }}.dataExploration.exploration import (
+    dispersion_measures_df,
+    plot_central_tendency_measures,
+)
+from {{ project_name }}.dataExploration.missing import missing_variable_summary
+from {{ project_name }}.paths import FIGURE_DIR, RAW_DATA_DIR, ensure_project_dirs
+
+df = pd.read_csv(RAW_DATA_DIR / "dataset.csv")
+summary = missing_variable_summary(df)
+dispersion = dispersion_measures_df(df)
+grid = plot_central_tendency_measures(df)
+ensure_project_dirs()
+grid.savefig(FIGURE_DIR / "distributions.png")
+```
+
+`dispersion_measures_df` summarizes numeric columns with sample variance,
+quartiles, and 1.5-IQR outlier counts. The distribution plot supports numeric,
+categorical, and datetime columns; it skips common identifier names and empty
+columns by default. Use `exclude_columns` to omit other unwanted variables.
+
+| Module | Useful functions |
+| --- | --- |
+| `dataExploration.exploration` | `dispersion_measures_df`, `encode_categories`, `decode_categories`, `plot_central_tendency_measures` |
+| `dataExploration.missing` | `missing_summary`, `missing_variable_summary`, `missing_case_summary`, `missing_variable_table`, `missing_case_table`, `missing_heatmap`, `impute_knn` |
+| `dataExploration.model_validation` | `models_results`, `plot_model_predictions` |
+
+The original names `dispertion_measures_df` and `missing_heatMap` remain as
+compatibility aliases. New code should use the corrected names above.
+
+## Missing data and modeling
+
+`impute_knn(df, exclude_columns=[...])` is an exploration helper. It fills
+numeric and categorical missing values, keeps excluded columns unchanged, and
+leaves datetimes and timedeltas unchanged, including `NaT`. Entirely missing
+numeric or categorical columns raise an error because there are no observed
+values to infer from. Column names must be unique strings. The input is not
+modified; imputed numeric columns may become floats, and decoded categorical
+columns do not preserve their original categorical dtype.
+
+Its distances use unscaled values. Large-scale numeric features can dominate;
+ordinal category codes impose an artificial order and are rounded after
+imputation. `method="onehot"` avoids that ordinal ordering but creates dense
+columns, so use care with high-cardinality data.
+
+For model evaluation, split training and evaluation data **before fitting**
+encoders, scalers, imputers, or models. Fit preprocessing on training data only
+and reuse it through a scikit-learn `Pipeline`/`ColumnTransformer`. This helper
+fits on each call, so it is not an inference transformer. Exclude identifiers
+and targets from exploratory imputation as appropriate.
+
+Compare predictions from already-fitted models:
+
+```python
+from {{ project_name }}.dataExploration.model_validation import (
+    models_results,
+    plot_model_predictions,
+)
+
+# test_df contains feature columns and a target column; model is already fitted.
+results = models_results(
+    test_df, [model], actual_value_col="target", model_cols=["baseline"]
+)
+grid = plot_model_predictions(results, actual_value_col="target")
+```
+
+The target is removed before prediction. Supply `feature_cols=[...]` when the
+model expects particular features or column order. These plots compare
+distributions; add task-appropriate held-out metrics and residual analysis to
+assess prediction quality.
 
 ## Development
 
@@ -32,7 +137,19 @@ uv run ruff check .
 uv run ruff format .
 uv run pytest
 uv run {{ project_name | replace('_', '-') }}
+uv build
 ```
 
-Keep notebooks focused on exploration. Move reusable loading, feature, and modeling
-logic into `src/{{ project_name }}/` and cover it with tests.
+The command-line entry point currently creates output directories and logs
+where processed data belongs. Add your pipeline as the project develops.
+Keep notebooks focused on questions and findings; move reusable loading,
+feature, and modeling logic into `src/{{ project_name }}/` with tests.
+
+Paths resolve to the editable source checkout by default. For a wheel installed
+elsewhere, set `DATA_PROJECT_ROOT` to an existing project directory before
+importing `paths` or running the CLI; artifacts are never written into
+`site-packages` by default.
+
+To update from the template, commit your work, run `uvx copier update --trust`,
+review changes and any conflicts, then rerun lint and tests. `--trust` allows
+the template's `uv sync` task to execute.
